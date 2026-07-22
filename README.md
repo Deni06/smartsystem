@@ -50,8 +50,174 @@ Panduan lengkap untuk deploy project Smart Door AES menggunakan Docker.
 - Docker dan Docker Compose sudah terinstall
 - Port 80, 443, 3306, dan 8080 tersedia
 
-### Instalasi & Menjalankan Aplikasi
+## Instalasi & Menjalankan Aplikasi
 
-#### 1. Clone/Download Project
+### 1. Clone/Download Project
 ```bash
 cd /path/to/project
+```
+
+### 2. Setup Environment Variables
+```bash
+cp .env.example .env
+```
+
+Edit file `.env` sesuai kebutuhan Anda (database credentials, ports, dll)
+
+### 3. Build dan Jalankan Container
+```bash
+docker-compose up -d --build
+```
+
+Tunggu hingga semua service berjalan (MySQL membutuhkan beberapa menit untuk startup pertama kali).
+
+### 4. Verifikasi Service
+```bash
+docker-compose ps
+```
+
+Semua service harus dalam status "Up".
+
+### 5. Import Database (jika ada)
+Jika Anda memiliki backup database, letakkan file SQL di folder `database/` dan restart container:
+```bash
+docker-compose restart db
+```
+
+Atau gunakan PHPMyAdmin di http://localhost:8080
+
+### 6. Akses Aplikasi
+- **Web Application**: http://localhost
+- **PHPMyAdmin**: http://localhost:8080
+  - Username: `smartdoor` (default)
+  - Password: `smartdoor123` (default)
+
+---
+
+## Struktur Folder
+
+```
+project/
+├── Dockerfile              # Konfigurasi Docker
+├── docker-compose.yml      # Konfigurasi services
+├── .env.example            # Template environment variables
+├── .dockerignore           # File yang diabaikan saat build
+├── config/
+│   ├── koneksi.php         # Koneksi DB (production)
+│   └── php.ini             # Konfigurasi PHP
+├── database/               # Folder untuk SQL files
+└── [project files]
+```
+
+---
+
+## Perintah Umum
+
+### Start Container
+```bash
+docker-compose up -d
+```
+
+### Stop Container
+```bash
+docker-compose stop
+```
+
+### Restart Container
+```bash
+docker-compose restart
+```
+
+### View Logs
+```bash
+docker-compose logs -f web    # Logs web service
+docker-compose logs -f db     # Logs database service
+```
+
+### Execute Command di Container
+```bash
+docker-compose exec web bash   # Akses shell web container
+docker-compose exec db mysql -u smartdoor -p ta
+```
+
+### Remove Container & Volumes (HATI-HATI!)
+```bash
+docker-compose down -v
+```
+
+---
+
+## Konfigurasi untuk Production
+
+Untuk deploy di production server, lakukan:
+
+### 1. Update koneksi.php
+Ubah `config/koneksi.php` untuk menggunakan environment variables:
+
+```php
+$server   = getenv('MYSQL_HOST') ?: 'localhost';
+$username = getenv('MYSQL_USER') ?: 'root';
+$password = getenv('MYSQL_PASSWORD') ?: '';
+$nama_db  = getenv('MYSQL_DATABASE') ?: 'ta';
+```
+
+### 2. Update .env
+```bash
+APP_ENV=production
+APP_DEBUG=false
+MYSQL_PASSWORD=your_secure_password
+MYSQL_ROOT_PASSWORD=your_secure_root_password
+```
+
+### 3. Setup SSL/HTTPS (Nginx Reverse Proxy)
+Buat file `nginx/Dockerfile`:
+
+```dockerfile
+FROM nginx:alpine
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx/ssl/ /etc/nginx/ssl/
+EXPOSE 80 443
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### 4. Restart Services
+```bash
+docker-compose down
+docker-compose up -d --build
+```
+
+---
+
+## Troubleshooting
+
+### Koneksi Database Gagal
+1. Verifikasi MySQL sudah running: `docker-compose ps`
+2. Check logs: `docker-compose logs db`
+3. Pastikan credentials di `.env` benar
+
+### Port Sudah Terpakai
+Ubah port di `docker-compose.yml`:
+```yaml
+ports:
+  - "8000:80"  # Port host:container
+```
+
+### File Upload Gagal
+Tingkatkan limit di `config/php.ini`:
+```ini
+upload_max_filesize = 100M
+post_max_size = 100M
+```
+
+### Permissions Error
+```bash
+docker-compose exec web chown -R www-data:www-data /var/www/html
+docker-compose exec web chmod -R 755 /var/www/html
+```
+
+---
+
+## Support
+
+Untuk pertanyaan atau issues, silakan hubungi developer atau check dokumentasi Docker di https://docs.docker.com
+
